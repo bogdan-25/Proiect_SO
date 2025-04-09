@@ -1,0 +1,17 @@
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct{
+  int treasureID;
+  char username[40];
+  float latitude;
+  float longitude;
+  char clueText[100];
+  int value;
+}hunt_id;
+
+int main(void)
+{
+  
+  return 0;
+}
