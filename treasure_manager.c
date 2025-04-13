@@ -10,7 +10,7 @@
 #include <errno.h>
 
 typedef struct {
-    int treasure_id;
+    char treasure_id[50];
     char username[32];
     float latitude;
     float longitude;
@@ -20,8 +20,8 @@ typedef struct {
 
 void add_treasure(char *hunt_id);
 void list_treasures(char *hunt_id);
-void view_treasure(char *hunt_id, int treasure_id);
-void remove_treasure(char *hunt_id, int treasure_id);
+void view_treasure(char *hunt_id, char *treasure_id);
+void remove_treasure(char *hunt_id, char *treasure_id);
 void remove_hunt(char *hunt_id);
 void log_operation(char *hunt_id, char *message);
 void create_symlink(char *hunt_id);
@@ -46,13 +46,13 @@ int main(int argc, char *argv[]) {
             fprintf(stderr, "Missing treasure ID\n");
             exit(EXIT_FAILURE);
         }
-        view_treasure(argv[2], atoi(argv[3]));
+        view_treasure(argv[2], argv[3]);
     } else if (strcmp(argv[1], "--remove_treasure") == 0) {
         if (argc < 4) {
             fprintf(stderr, "Missing treasure ID\n");
             exit(EXIT_FAILURE);
         }
-        remove_treasure(argv[2], atoi(argv[3]));
+        remove_treasure(argv[2], argv[3]);
     } else if (strcmp(argv[1], "--remove_hunt") == 0) {
         remove_hunt(argv[2]);
     } else {
@@ -110,8 +110,8 @@ void add_treasure(char* hunt_id) {
 
 
     printf("Enter Treasure ID: ");
-    scanf("%d", &t.treasure_id);
-    getchar();
+    fgets(t.treasure_id, 50, stdin);
+    t.treasure_id[strcspn(t.treasure_id, "\n")] = 0;
 
     printf("Enter Username: ");
     fgets(t.username, 32, stdin);
@@ -147,7 +147,7 @@ void add_treasure(char* hunt_id) {
 
 
     char log_msg[256];
-    snprintf(log_msg, sizeof(log_msg), "Added treasure ID %d by user %s\n", t.treasure_id, t.username);
+    snprintf(log_msg, sizeof(log_msg), "Added treasure ID %s by user %s\n", t.treasure_id, t.username);
     log_operation(hunt_id, log_msg);
 
     create_symlink(hunt_id);
@@ -177,7 +177,7 @@ void list_treasures(char *hunt_id) {
 
     Treasure t;
     while (read(fd, &t, sizeof(Treasure)) == sizeof(Treasure)) {
-        printf("\nTreasure ID: %d\n"
+        printf("\nTreasure ID: %s\n"
                "Username: %s\n"
                "Coordinates: %.2f, %.2f\n"
                "Clue: %s\n"
@@ -186,7 +186,7 @@ void list_treasures(char *hunt_id) {
     close(fd);
 }
 
-void view_treasure(char *hunt_id, int treasure_id) {
+void view_treasure(char *hunt_id, char *treasure_id) {
     char file_path[500];
     snprintf(file_path, sizeof(file_path), "%s/treasures.dat", hunt_id);
 
@@ -198,8 +198,8 @@ void view_treasure(char *hunt_id, int treasure_id) {
 
     Treasure t;
     while (read(fd, &t, sizeof(Treasure)) == sizeof(Treasure)) {
-        if (t.treasure_id == treasure_id) {
-            printf("Treasure ID: %d\n", t.treasure_id);
+      if (strcmp(treasure_id,t.treasure_id)==0) {
+            printf("Treasure ID: %s\n", t.treasure_id);
             printf("Username: %s\n", t.username);
             printf("Coordinates: %.2f, %.2f\n", t.latitude, t.longitude);
             printf("Clue: %s\n", t.clue);
@@ -209,11 +209,11 @@ void view_treasure(char *hunt_id, int treasure_id) {
         }
     }
 
-    printf("Treasure with ID %d not found.\n", treasure_id);
+    printf("Treasure with ID %s not found.\n", treasure_id);
     close(fd);
 }
 
-void remove_treasure(char *hunt_id, int treasure_id) {
+void remove_treasure(char *hunt_id, char *treasure_id) {
     char file_path[500];
     snprintf(file_path, sizeof(file_path), "%s/treasures.dat", hunt_id);
 
@@ -236,21 +236,25 @@ void remove_treasure(char *hunt_id, int treasure_id) {
     Treasure t;
     int treasure_found = 0;
     while (read(fd, &t, sizeof(Treasure)) == sizeof(Treasure)) {
-        if (t.treasure_id == treasure_id) {
-            treasure_found = 1;  // Skipping the treasure to remove it
-            continue;
-        }
+      if (strcmp(t.treasure_id, treasure_id) == 0) {
+	treasure_found = 1;
+	continue;
+      }
         write(temp_fd, &t, sizeof(Treasure));
     }
 
     if (!treasure_found) {
-        printf("Treasure with ID %d not found.\n", treasure_id);
+        printf("Treasure with ID %s not found.\n", treasure_id);
     } else {
-        printf("Treasure with ID %d removed successfully.\n", treasure_id);
+        printf("Treasure with ID %s removed successfully.\n", treasure_id);
         // Replace the old file with the new file
         remove(file_path);
         rename(temp_path, file_path);
     }
+
+    char msg[256];
+    sprintf(msg, "Deleted treasure ID %s by user %s\n", t.treasure_id, t.username);
+    log_operation(hunt_id, msg);
 
     close(fd);
     close(temp_fd);
