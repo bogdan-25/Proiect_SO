@@ -1,0 +1,137 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
+#define COMMAND_FILE "comms.txt"
+#define BUFFER_SIZE 256
+#define PATH_BUFFER 512
+
+typedef struct {
+    char id[50];
+    char owner[32];
+    float lat;
+    float lon;
+    char hint[256];
+    int worth;
+} Treasure;
+
+void list_all_hunts() {
+    DIR *hunt_dir = opendir(".");
+    if (!hunt_dir) {
+        perror("opendir");
+        return;
+    }
+
+    struct dirent *entry;
+    while ((entry = readdir(hunt_dir))) {
+        if (entry->d_type == DT_DIR && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+            char file_path[PATH_BUFFER];
+            snprintf(file_path, sizeof(file_path), "%s/treasures.dat", entry->d_name);
+            FILE *file = fopen(file_path, "rb");
+            if (!file) continue;
+
+            int total = 0;
+            Treasure tr;
+            while (fread(&tr, sizeof(Treasure), 1, file) == 1) {
+                total++;
+            }
+            fclose(file);
+
+            printf("Hunt: %s - %d treasures\n", entry->d_name, total);
+        }
+    }
+    closedir(hunt_dir);
+}
+
+void list_treasures(const char *hunt) {
+    char file_path[PATH_BUFFER];
+    snprintf(file_path, sizeof(file_path), "%s/treasures.dat", hunt);
+
+    FILE *file = fopen(file_path, "rb");
+    if (!file) {
+        printf("Hunt '%s' not found or cannot open file.\n", hunt);
+        return;
+    }
+
+    Treasure tr;
+    while (fread(&tr, sizeof(Treasure), 1, file) == 1) {
+        printf("Treasure ID: %s\n", tr.id);
+    }
+    fclose(file);
+}
+
+void show_treasure_details(const char *hunt, const char *treasure) {
+    char file_path[PATH_BUFFER];
+    snprintf(file_path, sizeof(file_path), "%s/treasures.dat", hunt);
+
+    FILE *file = fopen(file_path, "rb");
+    if (!file) {
+        printf("Hunt '%s' not found.\n", hunt);
+        return;
+    }
+
+    Treasure tr;
+    int found = 0;
+    while (fread(&tr, sizeof(Treasure), 1, file) == 1) {
+        if (strcmp(tr.id, treasure) == 0) {
+            printf("Treasure ID: %s\n", tr.id);
+            printf("Username: %s\n", tr.owner);
+            printf("Latitude: %.2f\n", tr.lat);
+            printf("Longitude: %.2f\n", tr.lon);
+            printf("Clue: %s\n", tr.hint);
+            printf("Value: %d\n", tr.worth);
+            found = 1;
+            break;
+        }
+    }
+
+    if (!found) {
+        printf("Treasure ID %s not found in hunt '%s'.\n", treasure, hunt);
+    }
+    fclose(file);
+}
+
+int main() {
+    while (1) {
+        FILE *cmd_file = fopen(COMMAND_FILE, "r");
+        if (!cmd_file) {
+            sleep(1);
+            continue;
+        }
+
+        char buffer[BUFFER_SIZE];
+        if (fgets(buffer, BUFFER_SIZE, cmd_file)) {
+            buffer[strcspn(buffer, "\n")] = '\0';
+
+            char command[32], param1[64], param2[64];
+            int tokens = sscanf(buffer, "%s %s %s", command, param1, param2);
+
+            if (strcmp(command, "list_hunts") == 0) {
+                list_all_hunts();
+            } else if (strcmp(command, "list_treasures") == 0 && tokens == 2) {
+                list_treasures(param1);
+            } else if (strcmp(command, "view_treasure") == 0 && tokens == 3) {
+                show_treasure_details(param1, param2);
+            } else if (strcmp(command, "stop_monitor") == 0) {
+                printf("Stopping monitor...\n");
+                break;
+            } else if (strcmp(command, "exit") == 0) {
+                printf("Cannot exit: Monitor is still active. Please stop it first using 'stop_monitor'.\n");
+            } else {
+                printf("Invalid command: %s\n", buffer);
+            }
+
+            fclose(cmd_file);
+            cmd_file = fopen(COMMAND_FILE, "w");
+            if (cmd_file) fclose(cmd_file);
+        } else {
+            fclose(cmd_file);
+        }
+        sleep(1);
+    }
+    return 0;
+}
