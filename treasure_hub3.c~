@@ -11,8 +11,8 @@
 int main()
 {
     char input[BUFFER_SIZE];
-    int pipe_cmd[2]; 
-    int pipe_output[2];
+    int pipe_cmd[2];      // hub → monitor
+    int pipe_output[2];   // monitor → hub
     pid_t monitor_pid = -1;
 
     printf("Treasure Hub\n");
@@ -40,6 +40,7 @@ int main()
             monitor_pid = fork();
             if (monitor_pid == 0)
             {
+                // copil - redirect stdin/out
                 dup2(pipe_cmd[0], STDIN_FILENO);
                 dup2(pipe_output[1], STDOUT_FILENO);
                 dup2(pipe_output[1], STDERR_FILENO);
@@ -54,8 +55,10 @@ int main()
                 perror("fork failed");
                 exit(1);
             }
-            close(pipe_cmd[0]); 
-            close(pipe_output[1]);
+
+            // părinte
+            close(pipe_cmd[0]);      // scriem în pipe_cmd[1]
+            close(pipe_output[1]);   // citim din pipe_output[0]
 
             printf("Monitor started successfully. Command list:\n");
             printf("- list_hunts\n");
@@ -90,6 +93,8 @@ int main()
         else if (monitor_pid > 0)
         {
             dprintf(pipe_cmd[1], "%s\n", input);
+
+            // Așteaptă date de la monitor (max 1 sec)
             fd_set readfds;
             struct timeval timeout;
             FD_ZERO(&readfds);
@@ -106,7 +111,7 @@ int main()
                     if (n < BUFFER_SIZE - 1) break;
                 }
             } else {
-                printf("Error talking to monitor.\n");
+                printf("No response from monitor.\n");
             }
         }
         else
